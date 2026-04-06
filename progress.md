@@ -12,6 +12,12 @@ Original prompt: yo, i'm here to build three.js game called HOOPS, mobile-browse
 - Latest local refactor changed the pre-shot flow to `dribble idle -> drag/release target lock -> ping-pong strength -> shoot`.
 - Ball size increased, hoop radius reduced and moved closer to the board, pole/support geometry slimmed down, and the floor texture now carries fuller painted court markings instead of the placeholder key plane.
 - This pass was only validated with `npm run build`; browser/play feel has not been re-verified yet after the control refactor.
+- Kept the frozen target bar visible during the strength phase on mobile, increased HUD bottom safe-area padding, removed the post-score shrink while preserving fade, raised the rim so it visually mounts into the board more cleanly, and softened rim collision / make-window tuning slightly.
+- Playwright validation rerun after those fixes:
+- `output/playwright/hoops-bars` shows `mode:"power"` with both target and strength bars visible together and no browser errors.
+- `output/playwright/hoops-score` shows `score:1` after a timed shot sequence, no browser errors, and the rim/board alignment looks improved in the screenshot.
+- `output/playwright/hoops-fade` finished back at idle with `score:1`; it confirms no browser errors after the full post-score cycle, but does not isolate the mid-fade frame.
+- Current Playwright checks used the client script’s default viewport, so mobile-safe spacing was not emulated as a device-specific viewport test.
 - Rim repositioned closer to backboard: HOOP_CENTER Z moved from -6.12 to -6.32 (~0.14m from board face, matching regulation ~6 inches). hoopBase and boardSquare adjusted accordingly.
 - Net geometry removed (placeholder — will revisit with animated mesh net later).
 - Score feedback made juicier: ball scale pop on score, screen-edge white flash overlay (CSS animation), "SWISH!" text on the hoop scoreboard for 0.8s before reverting to score number, gold glow on swish text.
@@ -19,3 +25,10 @@ Original prompt: yo, i'm here to build three.js game called HOOPS, mobile-browse
 - Basketball stitching upgraded from 2 simple seams to a 6-line pattern: horizontal ring, vertical ring, and 4 curved channel lines creating the 8-panel basketball look.
 - Hint card auto-hides after first shot via CSS `is-hidden` class (opacity 0 + translateY transition). shotCount tracked on the game instance.
 - Codebase split from single 1200-line main.ts into modules: constants.ts, ball.ts, court.ts, hoop.ts, physics.ts, scoring.ts, hud.ts, game.ts (HoopsGame class), main.ts (bootstrap). Build validated with `npm run build`, no TS errors.
+- Rim raised: HOOP_CENTER Y moved from 3.04 to 3.30, BOARD_CENTER Y from 3.86 to 4.12. All pole/support/boardSquare/hoopBase positions adjusted (+0.26 delta). Pole height increased to 5.1.
+- Ball enlarged: BALL_RADIUS from 0.16 to 0.21. Shadow circle scaled proportionally (0.38 → 0.48).
+- 3D scoreboard panel removed entirely. Score now displayed via DOM popup — gold number scales up then fades on each basket. Screen-edge white flash retained.
+- Post-score ball animation: ball gets a downward velocity push after scoring, bounces on the floor naturally (existing restitution physics), then fades out (opacity + scale) over ~0.5s before resetting. No scheduleReset in completeScore — physics runs for 1.8s post-score.
+- Input model replaced: drag-to-aim removed entirely. New sequential tap flow: idle → tap → target bar sweeps L↔R (ping-pong at 1.8x speed) → tap to lock → strength bar bounces → tap to shoot. One bar visible at a time with CSS transitions. No pointer move/up listeners, no arrow key nudging. Vertical aim fixed at 0.36 offset. Preview arc only visible during strength phase.
+- HUD updated: bars start hidden, appear one at a time per mode. Hint text updated for tap flow ("Tap anywhere to start", "Tap to lock your aim", "Tap to shoot"). HudRefs extended with targetMetric/strengthMetric div references for show/hide toggling.
+- Build validated with `npm run build`, no TS errors. Browser/play feel testing pending.

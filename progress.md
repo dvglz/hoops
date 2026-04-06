@@ -1,0 +1,21 @@
+Original prompt: yo, i'm here to build three.js game called HOOPS, mobile-browser optimized, two metrics target + strength, pov slightly angled, assets hoops basket ball surroundings concrete floor some background all simple 3d, score appears on board/hoops itself, no endgame goal just hoops, stack vite+ts+threejs. Follow-up decisions: portrait and "yea, lfg".
+
+- Bootstrapped a fresh Vite + TypeScript + Three project in an empty repo.
+- First MVP direction: portrait-only endless shootaround, fixed slightly angled camera, simple low-poly environment, score panel mounted on the hoop structure.
+- Kept the first pass pure Three for ball flight and collisions to get a working prototype fast before considering a dedicated physics package.
+- Added keyboard fallback for desktop and automated validation: arrows adjust aim, `space`/`enter` shoots, `f` toggles fullscreen.
+- Validation runs completed with the Playwright game loop:
+- `output/hoops-check-idle` confirms idle render plus `render_game_to_text` alignment.
+- `output/hoops-check-center-v6` confirms a centered powered shot increments score to `01` on the hoop display.
+- `output/hoops-check-miss` confirms an off-center shot still resolves as a miss with score `0`.
+- No console/runtime errors were emitted in the validation captures.
+- Latest local refactor changed the pre-shot flow to `dribble idle -> drag/release target lock -> ping-pong strength -> shoot`.
+- Ball size increased, hoop radius reduced and moved closer to the board, pole/support geometry slimmed down, and the floor texture now carries fuller painted court markings instead of the placeholder key plane.
+- This pass was only validated with `npm run build`; browser/play feel has not been re-verified yet after the control refactor.
+- Rim repositioned closer to backboard: HOOP_CENTER Z moved from -6.12 to -6.32 (~0.14m from board face, matching regulation ~6 inches). hoopBase and boardSquare adjusted accordingly.
+- Net geometry removed (placeholder — will revisit with animated mesh net later).
+- Score feedback made juicier: ball scale pop on score, screen-edge white flash overlay (CSS animation), "SWISH!" text on the hoop scoreboard for 0.8s before reverting to score number, gold glow on swish text.
+- Ball now spins during flight based on velocity (rotation.x from vz, rotation.z from vx). Previously only rotated during pre-shot bounce.
+- Basketball stitching upgraded from 2 simple seams to a 6-line pattern: horizontal ring, vertical ring, and 4 curved channel lines creating the 8-panel basketball look.
+- Hint card auto-hides after first shot via CSS `is-hidden` class (opacity 0 + translateY transition). shotCount tracked on the game instance.
+- Codebase split from single 1200-line main.ts into modules: constants.ts, ball.ts, court.ts, hoop.ts, physics.ts, scoring.ts, hud.ts, game.ts (HoopsGame class), main.ts (bootstrap). Build validated with `npm run build`, no TS errors.

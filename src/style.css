@@ -50,7 +50,7 @@ body {
   gap: 0.75rem;
   padding:
     0 1rem
-    calc(max(1rem, env(safe-area-inset-bottom)) + 0.65rem);
+    calc(max(1.35rem, env(safe-area-inset-bottom)) + 1.45rem);
   pointer-events: none;
 }
 
@@ -66,6 +66,16 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.35);
   backdrop-filter: blur(14px);
   box-shadow: 0 16px 36px rgba(16, 33, 49, 0.16);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.metric.is-hidden {
+  opacity: 0;
+  max-height: 0;
+  padding: 0 0.85rem;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .metric-row {
@@ -154,6 +164,29 @@ body {
 @keyframes flash-fade {
   0% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+.score-popup {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 5rem;
+  font-weight: 800;
+  color: #ffd54f;
+  text-shadow: 0 4px 24px rgba(255, 213, 79, 0.6);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.score-popup.is-active {
+  animation: score-pop 0.9s ease-out forwards;
+}
+
+@keyframes score-pop {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+  30%  { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); }
 }
 
 @media (min-width: 900px) {

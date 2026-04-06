@@ -55,7 +55,7 @@ export function createBall(scene: THREE.Scene): THREE.Mesh<THREE.SphereGeometry,
 
 export function createBallShadow(scene: THREE.Scene): THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial> {
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.38, 30),
+    new THREE.CircleGeometry(0.48, 30),
     new THREE.MeshBasicMaterial({
       color: 0x102131,
       transparent: true,

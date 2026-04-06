@@ -63,7 +63,7 @@ export function resolveRimCollisions(
   rimCollisionNodes: THREE.Vector3[],
   tempVec: THREE.Vector3,
 ): void {
-  const minDistance = BALL_RADIUS + RIM_TUBE_RADIUS;
+  const minDistance = BALL_RADIUS + RIM_TUBE_RADIUS * 0.58;
   let collided = false;
 
   for (const node of rimCollisionNodes) {
@@ -77,8 +77,8 @@ export function resolveRimCollisions(
     ballPosition.copy(node).addScaledVector(normal, minDistance + 0.001);
     const normalSpeed = ballVelocity.dot(normal);
     if (normalSpeed < 0) {
-      ballVelocity.addScaledVector(normal, -(1.36 * normalSpeed));
-      ballVelocity.multiplyScalar(0.985);
+      ballVelocity.addScaledVector(normal, -(1.2 * normalSpeed));
+      ballVelocity.multiplyScalar(0.975);
     }
     collided = true;
   }
@@ -102,14 +102,39 @@ export function resolveFloorCollision(
 
   ballPosition.y = floorY + BALL_RADIUS;
   if (Math.abs(ballVelocity.y) < 1.1 || shotClock > 2.8) {
-    ballVelocity.set(0, 0, 0);
-    return true;
+    ballVelocity.y = 0;
+    return Math.abs(ballVelocity.x) < 0.15 && Math.abs(ballVelocity.z) < 0.15;
   }
 
   ballVelocity.y = -ballVelocity.y * 0.58;
   ballVelocity.x *= 0.84;
   ballVelocity.z *= 0.82;
   return false;
+}
+
+export function applyGroundFriction(
+  ballPosition: THREE.Vector3,
+  ballVelocity: THREE.Vector3,
+  step: number,
+  floorY: number,
+): void {
+  if (ballPosition.y - BALL_RADIUS > floorY + 0.01) {
+    return;
+  }
+  if (ballVelocity.y > 0.5) {
+    return;
+  }
+  const friction = 2.8;
+  const speed = Math.hypot(ballVelocity.x, ballVelocity.z);
+  if (speed < 0.01) {
+    ballVelocity.x = 0;
+    ballVelocity.z = 0;
+    return;
+  }
+  const decel = Math.min(friction * step, speed);
+  const factor = (speed - decel) / speed;
+  ballVelocity.x *= factor;
+  ballVelocity.z *= factor;
 }
 
 export function resolveBounds(

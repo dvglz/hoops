@@ -5,7 +5,7 @@ export function buildHoop(scene: THREE.Scene): THREE.Vector3[] {
   const poleMaterial = new THREE.MeshStandardMaterial({
     color: 0x41586d,
     roughness: 0.68,
-    metalness: 0.24,
+    metalness: 0.1,
   });
   const boardMaterial = new THREE.MeshStandardMaterial({
     color: 0xf3f5f9,
@@ -15,19 +15,19 @@ export function buildHoop(scene: THREE.Scene): THREE.Vector3[] {
     opacity: 0.94,
   });
 
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 4.8, 10), poleMaterial);
-  pole.position.set(0, 2.4, -7.4);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 5.1, 10), poleMaterial);
+  pole.position.set(0, 2.55, -7.4);
   pole.castShadow = true;
   pole.receiveShadow = true;
   scene.add(pole);
 
   const support = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.96), poleMaterial);
-  support.position.set(0, 4.15, -6.94);
+  support.position.set(0, 4.41, -6.94);
   support.castShadow = true;
   scene.add(support);
 
   const supportDiagonal = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.7, 0.06), poleMaterial);
-  supportDiagonal.position.set(0, 3.77, -6.99);
+  supportDiagonal.position.set(0, 4.03, -6.99);
   supportDiagonal.rotation.x = Math.PI / 4;
   supportDiagonal.castShadow = true;
   scene.add(supportDiagonal);
@@ -42,7 +42,7 @@ export function buildHoop(scene: THREE.Scene): THREE.Vector3[] {
     new THREE.EdgesGeometry(new THREE.BoxGeometry(0.62, 0.46, 0.09)),
     new THREE.LineBasicMaterial({ color: 0xffffff }),
   );
-  boardSquare.position.set(0, 3.67, -6.46);
+  boardSquare.position.set(0, 3.93, -6.46);
   scene.add(boardSquare);
 
   const rim = new THREE.Mesh(
@@ -59,7 +59,7 @@ export function buildHoop(scene: THREE.Scene): THREE.Vector3[] {
   scene.add(rim);
 
   const hoopBase = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.28), poleMaterial);
-  hoopBase.position.set(0, 3.08, -6.42);
+  hoopBase.position.set(0, HOOP_CENTER.y + 0.04, HOOP_CENTER.z - 0.1);
   scene.add(hoopBase);
 
   const rimCollisionNodes: THREE.Vector3[] = [];

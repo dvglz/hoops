@@ -1,4 +1,6 @@
 import "./style.css";
+import { DEFAULT_SETTINGS } from "./constants";
+import { createDebugPanel } from "./debug";
 import { HoopsGame } from "./game";
 import { createHud } from "./hud";
 
@@ -15,7 +17,10 @@ app.append(shell);
 const hudRefs = createHud();
 shell.append(hudRefs.root);
 
-const game = new HoopsGame(shell, hudRefs);
+const debugPanelRefs = createDebugPanel(DEFAULT_SETTINGS);
+shell.append(debugPanelRefs.root);
+
+const game = new HoopsGame(shell, hudRefs, debugPanelRefs);
 game.start();
 
 window.render_game_to_text = () => game.renderGameToText();

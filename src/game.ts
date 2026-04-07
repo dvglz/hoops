@@ -1,20 +1,40 @@
 import * as THREE from "three";
-import type { GameMode, HudRefs } from "./constants";
-import { BALL_SPAWN, FLOOR_Y, GRAVITY, HOOP_CENTER } from "./constants";
-import { createBall, createBallShadow, syncBallMesh, updatePreShotBall } from "./ball";
-import { buildCourt, buildBackdrop } from "./court";
+import type {
+  AmbienceId,
+  BallSkinId,
+  DebugPanelRefs,
+  GameMode,
+  HudRefs,
+  RuntimeSettings,
+} from "./constants";
+import { BALL_SPAWN, DEFAULT_SETTINGS, FLOOR_Y, HOOP_CENTER } from "./constants";
+import { applyBallSkin, createBall, createBallShadow, syncBallMesh, updatePreShotBall } from "./ball";
+import { applyAmbience, createCourtRig, type CourtRig } from "./court";
 import { buildHoop } from "./hoop";
-import { applyGroundFriction, applyHoopAssist, resolveBackboardCollision, resolveBounds, resolveFloorCollision, resolveRimCollisions } from "./physics";
+import {
+  applyGroundFriction,
+  applyHoopAssist,
+  resolveBackboardCollision,
+  resolveBounds,
+  resolveFloorCollision,
+  resolveRimCollisions,
+} from "./physics";
 import { checkScore } from "./scoring";
-import { updateHud, updateHint, updateBarVisibility } from "./hud";
+import { syncDebugPanel } from "./debug";
+import { updateBarVisibility, updateHint, updateHud } from "./hud";
 
 export class HoopsGame {
   private container: HTMLElement;
   private hud: HudRefs;
+  private debug: DebugPanelRefs;
+  private settings: RuntimeSettings = { ...DEFAULT_SETTINGS };
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private clock = new THREE.Clock();
+  private ambientLight: THREE.HemisphereLight;
+  private sunLight: THREE.DirectionalLight;
+  private courtRig: CourtRig;
   private ball: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private ballShadow: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
   private previewGeometry = new THREE.BufferGeometry();
@@ -48,11 +68,12 @@ export class HoopsGame {
   private readonly tempVec = new THREE.Vector3();
   private readonly rimCenter = HOOP_CENTER.clone();
 
-  constructor(container: HTMLElement, hud: HudRefs) {
+  constructor(container: HTMLElement, hud: HudRefs, debug: DebugPanelRefs) {
     this.container = container;
     this.hud = hud;
+    this.debug = debug;
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.Fog(0xcfd9e2, 12, 28);
+    this.scene.fog = new THREE.Fog(0xbec9d2, 10, 28);
 
     this.camera = new THREE.PerspectiveCamera(44, 1, 0.1, 100);
     this.camera.position.set(1.95, 3.38, 8.25);
@@ -63,26 +84,29 @@ export class HoopsGame {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.95;
     this.renderer.domElement.setAttribute("aria-label", "HOOPS game canvas");
     this.renderer.domElement.style.touchAction = "none";
     this.container.append(this.renderer.domElement);
 
-    const ambientLight = new THREE.HemisphereLight(0xf5fbff, 0xcda97a, 1.25);
-    this.scene.add(ambientLight);
+    this.ambientLight = new THREE.HemisphereLight(0xf5fbff, 0xcda97a, 1.25);
+    this.scene.add(this.ambientLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfff1cf, 1.75);
-    sunLight.position.set(6, 9, 8);
-    sunLight.castShadow = true;
-    sunLight.shadow.mapSize.set(1024, 1024);
-    sunLight.shadow.camera.left = -10;
-    sunLight.shadow.camera.right = 10;
-    sunLight.shadow.camera.top = 10;
-    sunLight.shadow.camera.bottom = -10;
-    sunLight.shadow.camera.near = 1;
-    sunLight.shadow.camera.far = 25;
-    this.scene.add(sunLight);
+    this.sunLight = new THREE.DirectionalLight(0xfff1cf, 1.75);
+    this.sunLight.position.set(6, 9, 8);
+    this.sunLight.castShadow = true;
+    this.sunLight.shadow.mapSize.set(1024, 1024);
+    this.sunLight.shadow.camera.left = -10;
+    this.sunLight.shadow.camera.right = 10;
+    this.sunLight.shadow.camera.top = 10;
+    this.sunLight.shadow.camera.bottom = -10;
+    this.sunLight.shadow.camera.near = 1;
+    this.sunLight.shadow.camera.far = 25;
+    this.scene.add(this.sunLight);
 
-    this.ball = createBall(this.scene);
+    this.courtRig = createCourtRig(this.scene);
+    this.ball = createBall(this.scene, this.settings.ballSkin);
     this.ballShadow = createBallShadow(this.scene);
     this.previewLine = new THREE.Line(
       this.previewGeometry,
@@ -113,10 +137,10 @@ export class HoopsGame {
     this.scorePopup.className = "score-popup";
     this.container.append(this.scorePopup);
 
-    buildCourt(this.scene);
-    buildBackdrop(this.scene);
     this.rimCollisionNodes = buildHoop(this.scene);
+    this.applyAmbienceTheme(this.settings.ambience);
     this.resetBall();
+    syncDebugPanel(this.debug, this.settings);
     updateHud(this.hud, this.targetBias, this.strength);
     updateHint(this.hud, this.mode, this.shotCount, this.ballScored);
     updateBarVisibility(this.hud, this.mode);
@@ -134,7 +158,53 @@ export class HoopsGame {
     window.removeEventListener("resize", this.handleResize);
     window.removeEventListener("keydown", this.handleKeyDown);
     this.renderer.domElement.removeEventListener("pointerdown", this.handlePointerDown);
+    this.debug.gravityInput.removeEventListener("input", this.handleGravityInput);
+    this.debug.ambienceSelect.removeEventListener("change", this.handleAmbienceChange);
+    this.debug.ballSkinSelect.removeEventListener("change", this.handleBallSkinChange);
     this.renderer.dispose();
+  }
+
+  renderGameToText(): string {
+    return JSON.stringify({
+      mode: this.mode,
+      coordSystem: "x right, y up, z toward player",
+      score: this.score,
+      preShotMode: this.mode === "idle" || this.mode === "targeting" || this.mode === "power",
+      settings: {
+        gravity: Number(this.settings.gravity.toFixed(1)),
+        ambience: this.settings.ambience,
+        ballSkin: this.settings.ballSkin,
+      },
+      strength: Number(this.strength.toFixed(2)),
+      target: {
+        x: Number(this.aimPoint.x.toFixed(2)),
+        y: Number(this.aimPoint.y.toFixed(2)),
+        z: Number(this.aimPoint.z.toFixed(2)),
+      },
+      ball: {
+        x: Number(this.ball.position.x.toFixed(2)),
+        y: Number(this.ball.position.y.toFixed(2)),
+        z: Number(this.ball.position.z.toFixed(2)),
+        vx: Number(this.ballVelocity.x.toFixed(2)),
+        vy: Number(this.ballVelocity.y.toFixed(2)),
+        vz: Number(this.ballVelocity.z.toFixed(2)),
+      },
+      hoop: {
+        x: this.rimCenter.x,
+        y: this.rimCenter.y,
+        z: this.rimCenter.z,
+      },
+      liveBall: this.mode === "flight",
+    });
+  }
+
+  advanceTime(milliseconds: number): void {
+    const steps = Math.max(1, Math.round(milliseconds / (1000 / 60)));
+    this.externalStepLockUntil = performance.now() + 250;
+    for (let index = 0; index < steps; index += 1) {
+      this.update(1 / 60);
+    }
+    this.render();
   }
 
   private callSyncBallMesh(): void {
@@ -145,6 +215,9 @@ export class HoopsGame {
     this.renderer.domElement.addEventListener("pointerdown", this.handlePointerDown);
     window.addEventListener("resize", this.handleResize);
     window.addEventListener("keydown", this.handleKeyDown);
+    this.debug.gravityInput.addEventListener("input", this.handleGravityInput);
+    this.debug.ambienceSelect.addEventListener("change", this.handleAmbienceChange);
+    this.debug.ballSkinSelect.addEventListener("change", this.handleBallSkinChange);
   }
 
   private handlePointerDown = (event: PointerEvent): void => {
@@ -169,6 +242,36 @@ export class HoopsGame {
     }
   };
 
+  private handleGravityInput = (): void => {
+    this.settings.gravity = Number(this.debug.gravityInput.value);
+    this.debug.gravityValue.textContent = this.settings.gravity.toFixed(1);
+    if (this.mode === "power") {
+      this.updateAimPreview();
+    }
+  };
+
+  private handleAmbienceChange = (): void => {
+    const ambience = this.debug.ambienceSelect.value as AmbienceId;
+    if (ambience === this.settings.ambience) {
+      return;
+    }
+
+    this.settings.ambience = ambience;
+    this.applyAmbienceTheme(ambience);
+    syncDebugPanel(this.debug, this.settings);
+  };
+
+  private handleBallSkinChange = (): void => {
+    const ballSkin = this.debug.ballSkinSelect.value as BallSkinId;
+    if (ballSkin === this.settings.ballSkin) {
+      return;
+    }
+
+    this.settings.ballSkin = ballSkin;
+    applyBallSkin(this.ball, ballSkin);
+    syncDebugPanel(this.debug, this.settings);
+  };
+
   private advanceMode(): void {
     if (this.mode === "idle") {
       this.mode = "targeting";
@@ -189,7 +292,6 @@ export class HoopsGame {
 
     if (this.mode === "power") {
       this.shootBall();
-      return;
     }
   }
 
@@ -213,7 +315,10 @@ export class HoopsGame {
 
     if (this.mode === "idle" || this.mode === "targeting" || this.mode === "power") {
       this.preShotClock = updatePreShotBall(
-        this.ball, this.ballPosition, this.preShotClock, delta,
+        this.ball,
+        this.ballPosition,
+        this.preShotClock,
+        delta,
         () => this.callSyncBallMesh(),
       );
 
@@ -258,9 +363,10 @@ export class HoopsGame {
     this.shotClock += delta;
     const substeps = Math.max(1, Math.ceil(delta / (1 / 120)));
     const step = delta / substeps;
+
     for (let index = 0; index < substeps; index += 1) {
       this.previousBallPosition.copy(this.ballPosition);
-      this.ballVelocity.y += GRAVITY * step;
+      this.ballVelocity.y += this.settings.gravity * step;
       this.ballPosition.addScaledVector(this.ballVelocity, step);
       this.ball.rotation.x += this.ballVelocity.z * step * 3;
       this.ball.rotation.z -= this.ballVelocity.x * step * 3;
@@ -275,7 +381,14 @@ export class HoopsGame {
       if (resolveBounds(this.ballPosition, this.shotClock) && !this.ballScored) {
         this.scheduleReset(0.3);
       }
-      const scoreResult = checkScore(this.ballPosition, this.previousBallPosition, this.ballVelocity, this.ballScored, this.shotAssist, this.rimCenter);
+      const scoreResult = checkScore(
+        this.ballPosition,
+        this.previousBallPosition,
+        this.ballVelocity,
+        this.ballScored,
+        this.shotAssist,
+        this.rimCenter,
+      );
       if (scoreResult) {
         this.completeScore();
       }
@@ -374,26 +487,25 @@ export class HoopsGame {
   }
 
   private updateAimPreview(): void {
-    const targetOffsetX = this.targetBias;
-    const targetOffsetY = 0.36;
-
     const rawAimPoint = new THREE.Vector3(
-      HOOP_CENTER.x + targetOffsetX,
-      HOOP_CENTER.y + THREE.MathUtils.clamp(targetOffsetY, -0.42, 1.08),
+      HOOP_CENTER.x + this.targetBias,
+      HOOP_CENTER.y + 0.36,
       HOOP_CENTER.z + 0.08,
     );
 
-    const centerAssist = 1 - THREE.MathUtils.clamp(Math.abs(targetOffsetX) / 0.42, 0, 1);
+    const centerAssist = 1 - THREE.MathUtils.clamp(Math.abs(this.targetBias) / 0.42, 0, 1);
     const strengthAssist = 1 - THREE.MathUtils.clamp(Math.abs(this.strength - 0.76) / 0.52, 0, 1);
     const assist = centerAssist * strengthAssist;
     this.previewAssist = assist;
-    this.aimPoint.copy(rawAimPoint).lerp(new THREE.Vector3(0, HOOP_CENTER.y + 0.42, HOOP_CENTER.z + 0.12), assist * 0.52);
+    this.aimPoint
+      .copy(rawAimPoint)
+      .lerp(new THREE.Vector3(0, HOOP_CENTER.y + 0.42, HOOP_CENTER.z + 0.12), assist * 0.52);
 
     const flightTime = THREE.MathUtils.lerp(1.36, 0.76, this.strength);
     this.predictedVelocity
       .copy(this.aimPoint)
       .sub(BALL_SPAWN)
-      .addScaledVector(new THREE.Vector3(0, -GRAVITY, 0), 0.5 * flightTime * flightTime)
+      .addScaledVector(new THREE.Vector3(0, -this.settings.gravity, 0), 0.5 * flightTime * flightTime)
       .divideScalar(flightTime);
 
     const points: THREE.Vector3[] = [];
@@ -402,7 +514,7 @@ export class HoopsGame {
     const timeStep = 1 / 30;
     for (let index = 0; index < 26; index += 1) {
       points.push(simulatedPosition.clone());
-      simulatedVelocity.y += GRAVITY * timeStep;
+      simulatedVelocity.y += this.settings.gravity * timeStep;
       simulatedPosition.addScaledVector(simulatedVelocity, timeStep);
     }
     this.previewGeometry.setFromPoints(points);
@@ -412,6 +524,17 @@ export class HoopsGame {
     this.aimMarker.lookAt(this.camera.position);
     this.aimMarker.visible = this.mode === "power";
     updateHud(this.hud, this.targetBias, this.strength);
+  }
+
+  private applyAmbienceTheme(ambience: AmbienceId): void {
+    const lighting = applyAmbience(this.scene, this.courtRig, ambience);
+    this.ambientLight.color.setHex(lighting.hemisphereSky);
+    this.ambientLight.groundColor.setHex(lighting.hemisphereGround);
+    this.ambientLight.intensity = lighting.hemisphereIntensity;
+    this.sunLight.color.setHex(lighting.sunColor);
+    this.sunLight.intensity = lighting.sunIntensity;
+    this.sunLight.position.set(...lighting.sunPosition);
+    this.renderer.toneMappingExposure = ambience === "desert" ? 1.04 : 0.94;
   }
 
   private resize(): void {
@@ -434,43 +557,5 @@ export class HoopsGame {
   private render(): void {
     this.aimMarker.lookAt(this.camera.position);
     this.renderer.render(this.scene, this.camera);
-  }
-
-  renderGameToText(): string {
-    return JSON.stringify({
-      mode: this.mode,
-      coordSystem: "x right, y up, z toward player",
-      score: this.score,
-      preShotMode: this.mode === "idle" || this.mode === "targeting" || this.mode === "power",
-      strength: Number(this.strength.toFixed(2)),
-      target: {
-        x: Number(this.aimPoint.x.toFixed(2)),
-        y: Number(this.aimPoint.y.toFixed(2)),
-        z: Number(this.aimPoint.z.toFixed(2)),
-      },
-      ball: {
-        x: Number(this.ball.position.x.toFixed(2)),
-        y: Number(this.ball.position.y.toFixed(2)),
-        z: Number(this.ball.position.z.toFixed(2)),
-        vx: Number(this.ballVelocity.x.toFixed(2)),
-        vy: Number(this.ballVelocity.y.toFixed(2)),
-        vz: Number(this.ballVelocity.z.toFixed(2)),
-      },
-      hoop: {
-        x: this.rimCenter.x,
-        y: this.rimCenter.y,
-        z: this.rimCenter.z,
-      },
-      liveBall: this.mode === "flight",
-    });
-  }
-
-  advanceTime(milliseconds: number): void {
-    const steps = Math.max(1, Math.round(milliseconds / (1000 / 60)));
-    this.externalStepLockUntil = performance.now() + 250;
-    for (let index = 0; index < steps; index += 1) {
-      this.update(1 / 60);
-    }
-    this.render();
   }
 }

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { BALL_RADIUS, BOARD_CENTER, GRAVITY, HOOP_CENTER, RIM_TUBE_RADIUS } from "./constants";
+import { BALL_RADIUS, BOARD_CENTER, HOOP_CENTER, RIM_TUBE_RADIUS } from "./constants";
 
 export function resolveBackboardCollision(
   ballPosition: THREE.Vector3,
@@ -143,5 +143,3 @@ export function resolveBounds(
 ): boolean {
   return shotClock > 5 || ballPosition.z < -13 || Math.abs(ballPosition.x) > 9;
 }
-
-export { GRAVITY };

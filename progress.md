@@ -32,3 +32,12 @@ Original prompt: yo, i'm here to build three.js game called HOOPS, mobile-browse
 - Input model replaced: drag-to-aim removed entirely. New sequential tap flow: idle → tap → target bar sweeps L↔R (ping-pong at 1.8x speed) → tap to lock → strength bar bounces → tap to shoot. One bar visible at a time with CSS transitions. No pointer move/up listeners, no arrow key nudging. Vertical aim fixed at 0.36 offset. Preview arc only visible during strength phase.
 - HUD updated: bars start hidden, appear one at a time per mode. Hint text updated for tap flow ("Tap anywhere to start", "Tap to lock your aim", "Tap to shoot"). HudRefs extended with targetMetric/strengthMetric div references for show/hide toggling.
 - Build validated with `npm run build`, no TS errors. Browser/play feel testing pending.
+- Added a live debug drawer in the top-right corner with controls for gravity, ambience, and ball skin. Current ambience options: `hood` and `desert`. Current ball skins: `classic`, `blacktop`, `sunburst`.
+- Refactored the scene into a switchable ambience rig. `hood` now uses a brick wall + graffiti mural + chain-link side fences + cooler urban lighting. `desert` uses mesa silhouettes, cactus props, warmer fog, and brighter directional light.
+- Ball material path now supports runtime skin swaps via generated canvas textures instead of a single hard-coded color. Seam geometry is preserved and recolored per skin.
+- The requested `imagegen` route could not be used in this session because the built-in `image_gen` tool was not exposed. Implemented project-local procedural textures instead and left clean hooks for future bitmap replacements.
+- Validation rerun:
+- `npm run build` passes after the ambience/debug refactor.
+- Playwright smoke capture `output/playwright/hoops-debug-idle` shows the hood ambience, visible debug drawer, and `render_game_to_text` reports `settings: { gravity: -18, ambience: "hood", ballSkin: "classic" }`.
+- Limitation: the stock `web_game_playwright_client.js` can click and drive frame steps, but it cannot programmatically change the `<select>` controls, so automated browser validation currently covers drawer visibility and default state rather than each switched option.
+- Added `city` back as a separate ambience and restored it as the default load state. This uses the earlier skyline/fence/palm-style backdrop so the game opens on the simpler city court again while keeping `hood` and `desert` in the debug switcher.
